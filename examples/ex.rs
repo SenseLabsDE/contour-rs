@@ -82,12 +82,13 @@ fn main() {
     let w = raw_data["width"].as_u64().unwrap() as usize;
 
     let contours = ContourBuilder::new(w, h, true)
-        .isobands(
+        .contours(
             &matrix,
             &[
                 90., 95., 100., 105., 110., 115., 120., 125., 130., 135., 140., 145., 150., 155.,
                 160., 165., 170., 175., 180., 185., 190., 195., 200.,
             ],
+            Some()
         )
         .unwrap();
 

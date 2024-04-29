@@ -60,7 +60,7 @@ pub fn contour_rings<V: GridValue>(
     dy: usize,
 ) -> Result<Vec<Ring>> {
     let mut isoring = IsoRingBuilder::new(dx, dy);
-    isoring.compute(values, threshold)
+    isoring.compute(values, threshold, None)
 }
 
 /// Isoring generator to compute marching squares with isolines stitched into rings.
@@ -98,7 +98,10 @@ impl IsoRingBuilder {
     ///
     /// * `values` - The slice of values to be used.
     /// * `threshold` - The threshold value to use.
-    pub fn compute<V: GridValue>(&mut self, values: &[V], threshold: V) -> Result<Vec<Ring>> {
+    pub fn compute<V: GridValue>(&mut self, values: &[V], threshold: V, no_data: Option<V>) -> Result<Vec<Ring>> {
+        let dx = self.dx as i64;
+        let dy = self.dy as i64;
+
         macro_rules! case_stitch {
             ($ix:expr, $x:ident, $y:ident, $result:expr) => {
                 CASES[$ix]
@@ -112,60 +115,80 @@ impl IsoRingBuilder {
             self.clear();
         }
         let mut result = Vec::new();
-        let dx = self.dx as i64;
-        let dy = self.dy as i64;
-        let mut x = -1;
-        let mut y = -1;
+
+        let mut x: i64 = -1;
+        let mut y: i64 = -1;
         let mut t0;
         let mut t1;
         let mut t2;
         let mut t3;
+        let mut n0;
+        let mut n1;
+        let mut n2;
+        let mut n3;
 
         // Special case for the first row (y = -1, t2 = t3 = 0).
-        t1 = (values[0] >= threshold) as usize;
-        case_stitch!(t1 << 1, x, y, &mut result);
-        x += 1;
-        while x < dx - 1 {
-            t0 = t1;
-            t1 = (values[(x + 1) as usize] >= threshold) as usize;
-            case_stitch!(t0 | t1 << 1, x, y, &mut result);
+        if no_data.is_none() {
+            t1 = (values[0] >= threshold) as usize;
+            case_stitch!(t1 << 1, x, y, &mut result);
             x += 1;
+            while x < dx - 1 {
+                t0 = t1;
+                t1 = (values[(x + 1) as usize] >= threshold) as usize;
+                    case_stitch!(t0 | t1 << 1, x, y, &mut result);
+                x += 1;
+            }
+            case_stitch!(t1, x, y, &mut result);
         }
-        case_stitch!(t1, x, y, &mut result);
 
         // General case for the intermediate rows.
         y += 1;
         while y < dy - 1 {
             x = -1;
             t1 = (values[(y * dx + dx) as usize] >= threshold) as usize;
+            n1 = Some(values[(y * dx + dx) as usize]) == no_data;
             t2 = (values[(y * dx) as usize] >= threshold) as usize;
-            case_stitch!(t1 << 1 | t2 << 2, x, y, &mut result);
+            n2 = Some(values[(y * dx) as usize]) == no_data;
+            if !n1 && !n2 && no_data.is_none(){
+                case_stitch!(t1 << 1 | t2 << 2, x, y, &mut result);
+            }
             x += 1;
             while x < dx - 1 {
                 t0 = t1;
+                n0 = n1;
                 t1 = (values[(y * dx + dx + x + 1) as usize] >= threshold) as usize;
+                n1 = Some(values[(y * dx + dx + x + 1) as usize]) == no_data;
                 t3 = t2;
+                n3 = n2;
                 t2 = (values[(y * dx + x + 1) as usize] >= threshold) as usize;
-                case_stitch!(t0 | t1 << 1 | t2 << 2 | t3 << 3, x, y, &mut result);
+                n2 = Some(values[(y * dx + x + 1) as usize]) == no_data;
+                if !n0 && !n1 && !n2 && !n3 {
+                    case_stitch!(t0 | t1 << 1 | t2 << 2 | t3 << 3, x, y, &mut result);
+                }
                 x += 1;
             }
-            case_stitch!(t1 | t2 << 3, x, y, &mut result);
+            if !n1 && !n2 && no_data.is_none() {
+                case_stitch!(t1 | t2 << 3, x, y, &mut result);
+            }
             y += 1;
         }
 
         // Special case for the last row (y = dy - 1, t0 = t1 = 0).
-        x = -1;
-        t2 = (values[(y * dx) as usize] >= threshold) as usize;
-        case_stitch!(t2 << 2, x, y, &mut result);
-        x += 1;
-        while x < dx - 1 {
-            t3 = t2;
-            t2 = (values[(y * dx + x + 1) as usize] >= threshold) as usize;
-            case_stitch!(t2 << 2 | t3 << 3, x, y, &mut result);
+        if no_data.is_none() {
+            x = -1;
+            t2 = (values[(y * dx) as usize] >= threshold) as usize;
+                case_stitch!(t2 << 2, x, y, &mut result);
             x += 1;
+            while x < dx - 1 {
+                t3 = t2;
+                t2 = (values[(y * dx + x + 1) as usize] >= threshold) as usize;
+                    case_stitch!(t2 << 2 | t3 << 3, x, y, &mut result);
+                x += 1;
+            }
+            case_stitch!(t2 << 3, x, y, &mut result);
         }
-        case_stitch!(t2 << 3, x, y, &mut result);
         self.is_empty = false;
+        result.extend(self.f.drain().map(|v| v.ring));
         Ok(result)
     }
 

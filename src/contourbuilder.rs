@@ -120,14 +120,14 @@ impl ContourBuilder {
     ///
     /// * `values` - The slice of values to be used.
     /// * `thresholds` - The slice of thresholds values to be used.
-    pub fn lines<V: GridValue>(&self, values: &[V], thresholds: &[V]) -> Result<Vec<Line<V>>> {
+    pub fn lines<V: GridValue>(&self, values: &[V], thresholds: &[V], no_data: Option<V>) -> Result<Vec<Line<V>>> {
         if values.len() != self.dx * self.dy {
             return Err(new_error(ErrorKind::BadDimension));
         }
         let mut isoring = IsoRingBuilder::new(self.dx, self.dy);
         thresholds
             .iter()
-            .map(|threshold| self.line(values, *threshold, &mut isoring))
+            .map(|threshold| self.line(values, *threshold, &mut isoring, no_data))
             .collect()
     }
 
@@ -136,8 +136,9 @@ impl ContourBuilder {
         values: &[V],
         threshold: V,
         isoring: &mut IsoRingBuilder,
+        no_data: Option<V>
     ) -> Result<Line<V>> {
-        let mut result = isoring.compute(values, threshold)?;
+        let mut result = isoring.compute(values, threshold, no_data)?;
         let mut linestrings = Vec::new();
 
         result.drain(..).try_for_each(|mut ring| {
@@ -184,7 +185,7 @@ impl ContourBuilder {
         let mut isoring = IsoRingBuilder::new(self.dx, self.dy);
         thresholds
             .iter()
-            .map(|threshold| self.contour(values, *threshold, &mut isoring))
+            .map(|threshold| self.contour(values, *threshold, &mut isoring, None))
             .collect()
     }
 
@@ -193,9 +194,10 @@ impl ContourBuilder {
         values: &[V],
         threshold: V,
         isoring: &mut IsoRingBuilder,
+        no_data: Option<V>,
     ) -> Result<Contour<V>> {
         let (mut polygons, mut holes) = (Vec::new(), Vec::new());
-        let mut result = isoring.compute(values, threshold)?;
+        let mut result = isoring.compute(values, threshold, no_data)?;
 
         result.drain(..).try_for_each(|mut ring| {
             // Smooth the ring if needed
@@ -261,7 +263,7 @@ impl ContourBuilder {
             .iter()
             .map(|threshold| {
                 // Compute the rings for the current threshold
-                let rings = isoring.compute(values, *threshold)?;
+                let rings = isoring.compute(values, *threshold, None)?;
                 let rings = rings
                     .into_iter()
                     .map(|mut ring| {
