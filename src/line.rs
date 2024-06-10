@@ -1,21 +1,21 @@
-use crate::{Float, GridValue};
+use crate::GridValue;
 use geo_types::MultiLineString;
 
 /// A line has the geometry and threshold of a contour ring, built by [`ContourBuilder`].
 #[derive(Debug, Clone)]
 pub struct Line<V: GridValue> {
-    pub(crate) geometry: MultiLineString<Float>,
+    pub(crate) geometry: MultiLineString<f64>,
     pub(crate) threshold: V,
 }
 
 impl<V: GridValue> Line<V> {
     /// Borrow the [`MultiLineString`](geo_types::MultiLineString) geometry of this contour.
-    pub fn geometry(&self) -> &MultiLineString<Float> {
+    pub fn geometry(&self) -> &MultiLineString<f64> {
         &self.geometry
     }
 
     /// Get the owned lines and threshold of this contour.
-    pub fn into_inner(self) -> (MultiLineString<Float>, V) {
+    pub fn into_inner(self) -> (MultiLineString<f64>, V) {
         (self.geometry, self.threshold)
     }
 

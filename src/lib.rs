@@ -60,18 +60,14 @@ mod band;
 mod contour;
 mod contourbuilder;
 mod error;
+pub mod grid;
 mod isoringbuilder;
 mod line;
 
 pub trait GridValue: PartialOrd + Copy + Num + NumCast {}
 impl<T> GridValue for T where T: PartialOrd + Copy + Num + NumCast {}
 
-#[cfg(feature = "f32")]
-pub type Float = f32;
-#[cfg(not(feature = "f32"))]
-pub type Float = f64;
-
-pub type Pt = geo_types::Coord<Float>;
+pub type Pt = geo_types::Coord<f64>;
 pub type Ring = Vec<Pt>;
 
 pub use crate::{

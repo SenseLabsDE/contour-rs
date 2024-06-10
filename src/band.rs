@@ -1,22 +1,22 @@
-use crate::{Float, GridValue};
+use crate::GridValue;
 use geo_types::MultiPolygon;
 
 /// An isoband has the geometry and min / max values of a contour ring, built by [`ContourBuilder`].
 #[derive(Debug, Clone)]
 pub struct Band<V: GridValue> {
-    pub(crate) geometry: MultiPolygon<Float>,
+    pub(crate) geometry: MultiPolygon<f64>,
     pub(crate) min_v: V,
     pub(crate) max_v: V,
 }
 
 impl<V: GridValue> Band<V> {
     /// Borrow the [`MultiPolygon`](geo_types::MultiPolygon) geometry of this contour.
-    pub fn geometry(&self) -> &MultiPolygon<Float> {
+    pub fn geometry(&self) -> &MultiPolygon<f64> {
         &self.geometry
     }
 
     /// Get the owned polygons and thresholds (min and max) of this band.
-    pub fn into_inner(self) -> (MultiPolygon<Float>, V, V) {
+    pub fn into_inner(self) -> (MultiPolygon<f64>, V, V) {
         (self.geometry, self.min_v, self.max_v)
     }
 

@@ -1,4 +1,4 @@
-use crate::{Float, Pt};
+use crate::Pt;
 
 #[allow(clippy::unnecessary_cast)]
 // Note that we need to disable the clippy warning about unnecessary casts
@@ -57,7 +57,7 @@ fn ring_contains(ring: &[Pt], point: &Pt) -> i32 {
 
 fn segment_contains(a: &Pt, b: &Pt, c: &Pt) -> bool {
     if collinear(a, b, c) {
-        if (a.x - b.x).abs() < Float::EPSILON {
+        if (a.x - b.x).abs() < f64::EPSILON {
             within(a.y, c.y, b.y)
         } else {
             within(a.x, c.x, b.x)
@@ -68,9 +68,9 @@ fn segment_contains(a: &Pt, b: &Pt, c: &Pt) -> bool {
 }
 
 fn collinear(a: &Pt, b: &Pt, c: &Pt) -> bool {
-    ((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y)).abs() < Float::EPSILON
+    ((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y)).abs() < f64::EPSILON
 }
 
-fn within(p: Float, q: Float, r: Float) -> bool {
+fn within(p: f64, q: f64, r: f64) -> bool {
     p <= q && q <= r || r <= q && q <= p
 }

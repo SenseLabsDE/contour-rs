@@ -1,10 +1,11 @@
+use crate::grid::Grid;
 use crate::{
     area::{area, contains},
     error::{new_error, ErrorKind, Result},
     isoringbuilder::IsoRingBuilder,
-    Band, Contour, Error, Float, GridValue, Line, Ring,
+    Band, Contour, Error, GridValue, Line, Ring,
 };
-use geo_types::{LineString, MultiLineString, MultiPolygon, Polygon};
+use geo_types::{Coord, LineString, MultiLineString, MultiPolygon, Polygon};
 use rustc_hash::FxHashMap;
 
 /// Contours generator, using builder pattern, to
@@ -20,13 +21,13 @@ pub struct ContourBuilder {
     /// Whether to smooth the contours
     smooth: bool,
     /// The horizontal coordinate for the origin of the grid.
-    x_origin: Float,
+    x_origin: f64,
     /// The vertical coordinate for the origin of the grid.
-    y_origin: Float,
+    y_origin: f64,
     /// The horizontal step for the grid
-    x_step: Float,
+    x_step: f64,
     /// The vertical step for the grid
-    y_step: Float,
+    y_step: f64,
 }
 
 impl ContourBuilder {
@@ -53,56 +54,61 @@ impl ContourBuilder {
     }
 
     /// Sets the x origin of the grid.
-    pub fn x_origin(mut self, x_origin: impl Into<Float>) -> Self {
+    pub fn x_origin(mut self, x_origin: impl Into<f64>) -> Self {
         self.x_origin = x_origin.into();
         self
     }
 
     /// Sets the y origin of the grid.
-    pub fn y_origin(mut self, y_origin: impl Into<Float>) -> Self {
+    pub fn y_origin(mut self, y_origin: impl Into<f64>) -> Self {
         self.y_origin = y_origin.into();
         self
     }
 
     /// Sets the x step of the grid.
-    pub fn x_step(mut self, x_step: impl Into<Float>) -> Self {
+    pub fn x_step(mut self, x_step: impl Into<f64>) -> Self {
         self.x_step = x_step.into();
         self
     }
 
     /// Sets the y step of the grid.
-    pub fn y_step(mut self, y_step: impl Into<Float>) -> Self {
+    pub fn y_step(mut self, y_step: impl Into<f64>) -> Self {
         self.y_step = y_step.into();
         self
     }
 
-    fn smooth_linear<V: GridValue>(&self, ring: &mut Ring, values: &[V], value: V) -> Result<()> {
+    fn smooth_linear<V: GridValue, G: Grid<V>>(
+        &self,
+        ring: &mut Ring,
+        values: &G,
+        value: V,
+    ) -> Result<()> {
         let dx = self.dx;
         let dy = self.dy;
-        let len_values = values.len();
 
         macro_rules! cast {
             ($num:expr) => {
-                num_traits::cast::<V, Float>($num).ok_or_else(|| new_error(ErrorKind::BadCast))
+                num_traits::cast::<V, f64>($num).ok_or_else(|| new_error(ErrorKind::BadCast))
             };
         }
 
         ring.iter_mut().try_for_each(|point| {
             let x = point.x;
             let y = point.y;
-            let xt = x.trunc() as usize;
-            let yt = y.trunc() as usize;
-            let mut v0;
-            let ix = yt * dx + xt;
-            if ix < len_values {
-                let v1 = values[ix];
-                if x > 0.0 && x < (dx as Float) && (xt as Float - x).abs() < Float::EPSILON {
-                    v0 = values[yt * dx + xt - 1];
-                    point.x = x + (cast!(value)? - cast!(v0)?) / (cast!(v1)? - cast!(v0)?) - 0.5;
+            let xt = x.trunc() as i64;
+            let yt = y.trunc() as i64;
+            if let Some(v1) = values.get_point(Coord::from((xt, yt))) {
+                if x > 0.0 && x < (dx as f64) && (xt as f64 - x).abs() < f64::EPSILON {
+                    if let Some(v0) = values.get_point(Coord::from((xt - 1, yt))) {
+                        point.x =
+                            x + (cast!(value)? - cast!(v0)?) / (cast!(v1)? - cast!(v0)?) - 0.5;
+                    }
                 }
-                if y > 0.0 && y < (dy as Float) && (yt as Float - y).abs() < Float::EPSILON {
-                    v0 = values[(yt - 1) * dx + xt];
-                    point.y = y + (cast!(value)? - cast!(v0)?) / (cast!(v1)? - cast!(v0)?) - 0.5;
+                if y > 0.0 && y < (dy as f64) && (yt as f64 - y).abs() < f64::EPSILON {
+                    if let Some(v0) = values.get_point(Coord::from((xt, yt - 1))) {
+                        point.y =
+                            y + (cast!(value)? - cast!(v0)?) / (cast!(v1)? - cast!(v0)?) - 0.5;
+                    }
                 }
             }
             Ok::<_, Error>(())
@@ -120,20 +126,24 @@ impl ContourBuilder {
     ///
     /// * `values` - The slice of values to be used.
     /// * `thresholds` - The slice of thresholds values to be used.
-    pub fn lines<V: GridValue>(&self, values: &[V], thresholds: &[V]) -> Result<Vec<Line<V>>> {
-        if values.len() != self.dx * self.dy {
+    pub fn lines<V: GridValue, G: Grid<V>>(
+        &self,
+        values: &G,
+        thresholds: &[V],
+    ) -> Result<Vec<Line<V>>> {
+        if values.size() != (self.dx, self.dy) {
             return Err(new_error(ErrorKind::BadDimension));
         }
-        let mut isoring = IsoRingBuilder::new(self.dx, self.dy);
+        let mut isoring = IsoRingBuilder::new();
         thresholds
             .iter()
             .map(|threshold| self.line(values, *threshold, &mut isoring))
             .collect()
     }
 
-    fn line<V: GridValue>(
+    fn line<V: GridValue, G: Grid<V>>(
         &self,
-        values: &[V],
+        values: &G,
         threshold: V,
         isoring: &mut IsoRingBuilder,
     ) -> Result<Line<V>> {
@@ -173,24 +183,24 @@ impl ContourBuilder {
     ///
     /// * `values` - The slice of values to be used.
     /// * `thresholds` - The slice of thresholds values to be used.
-    pub fn contours<V: GridValue>(
+    pub fn contours<V: GridValue, G: Grid<V>>(
         &self,
-        values: &[V],
+        values: &G,
         thresholds: &[V],
     ) -> Result<Vec<Contour<V>>> {
-        if values.len() != self.dx * self.dy {
+        if values.size() != (self.dx, self.dy) {
             return Err(new_error(ErrorKind::BadDimension));
         }
-        let mut isoring = IsoRingBuilder::new(self.dx, self.dy);
+        let mut isoring = IsoRingBuilder::new();
         thresholds
             .iter()
             .map(|threshold| self.contour(values, *threshold, &mut isoring))
             .collect()
     }
 
-    fn contour<V: GridValue>(
+    fn contour<V: GridValue, G: Grid<V>>(
         &self,
-        values: &[V],
+        values: &G,
         threshold: V,
         isoring: &mut IsoRingBuilder,
     ) -> Result<Contour<V>> {
@@ -245,17 +255,21 @@ impl ContourBuilder {
     /// * `values` - The slice of values to be used.
     /// * `thresholds` - The slice of thresholds values to be used
     ///                  (have to be equal to or greater than 2).
-    pub fn isobands<V: GridValue>(&self, values: &[V], thresholds: &[V]) -> Result<Vec<Band<V>>> {
+    pub fn isobands<V: GridValue, G: Grid<V>>(
+        &self,
+        values: &G,
+        thresholds: &[V],
+    ) -> Result<Vec<Band<V>>> {
         // We will compute rings as previously, but we will
         // iterate over the contours in pairs and use the paths from the lower threshold
         // and the path from the upper threshold to create the isoband.
-        if values.len() != self.dx * self.dy {
+        if values.size() != (self.dx, self.dy) {
             return Err(new_error(ErrorKind::BadDimension));
         }
         if thresholds.len() < 2 {
             return Err(new_error(ErrorKind::Unexpected));
         }
-        let mut isoring = IsoRingBuilder::new(self.dx, self.dy);
+        let mut isoring = IsoRingBuilder::new();
 
         let rings = thresholds
             .iter()
@@ -326,8 +340,8 @@ impl ContourBuilder {
                 enclosed_by_n.insert(i, enclosed_by_j);
             }
 
-            let mut polygons: Vec<Polygon<Float>> = Vec::new();
-            let mut interior_rings: Vec<LineString<Float>> = Vec::new();
+            let mut polygons: Vec<Polygon<f64>> = Vec::new();
+            let mut interior_rings: Vec<LineString<f64>> = Vec::new();
 
             for (i, (ring, _)) in rings_and_area.into_iter().enumerate() {
                 if *enclosed_by_n.get(&i).unwrap() % 2 == 0 {

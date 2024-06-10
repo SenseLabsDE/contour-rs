@@ -1,21 +1,21 @@
-use crate::{Float, GridValue};
+use crate::GridValue;
 use geo_types::MultiPolygon;
 
 /// A contour has the geometry and threshold of a contour ring, built by [`ContourBuilder`].
 #[derive(Debug, Clone)]
 pub struct Contour<V: GridValue> {
-    pub(crate) geometry: MultiPolygon<Float>,
+    pub(crate) geometry: MultiPolygon<f64>,
     pub(crate) threshold: V,
 }
 
 impl<V: GridValue> Contour<V> {
     /// Borrow the [`MultiPolygon`](geo_types::MultiPolygon) geometry of this contour.
-    pub fn geometry(&self) -> &MultiPolygon<Float> {
+    pub fn geometry(&self) -> &MultiPolygon<f64> {
         &self.geometry
     }
 
     /// Get the owned polygons and threshold of this contour.
-    pub fn into_inner(self) -> (MultiPolygon<Float>, V) {
+    pub fn into_inner(self) -> (MultiPolygon<f64>, V) {
         (self.geometry, self.threshold)
     }
 

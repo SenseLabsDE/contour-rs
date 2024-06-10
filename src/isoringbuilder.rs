@@ -1,6 +1,7 @@
+use crate::grid::{Extent, Grid};
 use crate::{
     error::{new_error, ErrorKind, Result},
-    Float, GridValue, Pt, Ring,
+    GridValue, Pt, Ring,
 };
 use geo_types::Coord;
 use lazy_static::lazy_static;
@@ -9,7 +10,7 @@ use slab::Slab;
 
 lazy_static! {
     #[rustfmt::skip]
-    static ref CASES: Vec<Vec<Vec<Vec<Float>>>> = vec![
+    static ref CASES: Vec<Vec<Vec<Vec<f64>>>> = vec![
         vec![],
         vec![vec![vec![1.0, 1.5], vec![0.5, 1.0]]],
         vec![vec![vec![1.5, 1.0], vec![1.0, 1.5]]],
@@ -53,14 +54,9 @@ struct Fragment {
 /// * `dx` - The number of columns in the grid.
 /// * `dy` - The number of rows in the grid.
 
-pub fn contour_rings<V: GridValue>(
-    values: &[V],
-    threshold: V,
-    dx: usize,
-    dy: usize,
-) -> Result<Vec<Ring>> {
-    let mut isoring = IsoRingBuilder::new(dx, dy);
-    isoring.compute(values, threshold)
+pub fn contour_rings<V: GridValue, G: Grid<V>>(values: G, threshold: V) -> Result<Vec<Ring>> {
+    let mut isoring = IsoRingBuilder::new();
+    isoring.compute(&values, threshold)
 }
 
 /// Isoring generator to compute marching squares with isolines stitched into rings.
@@ -68,8 +64,6 @@ pub struct IsoRingBuilder {
     fragment_by_start: FxHashMap<usize, usize>,
     fragment_by_end: FxHashMap<usize, usize>,
     f: Slab<Fragment>,
-    dx: usize,
-    dy: usize,
     is_empty: bool,
 }
 
@@ -79,13 +73,11 @@ impl IsoRingBuilder {
     ///
     /// * `dx` - The number of columns in the grid.
     /// * `dy` - The number of rows in the grid.
-    pub fn new(dx: usize, dy: usize) -> Self {
+    pub fn new() -> Self {
         IsoRingBuilder {
             fragment_by_start: FxHashMap::default(),
             fragment_by_end: FxHashMap::default(),
             f: Slab::new(),
-            dx,
-            dy,
             is_empty: true,
         }
     }
@@ -97,13 +89,18 @@ impl IsoRingBuilder {
     /// # Arguments
     ///
     /// * `values` - The slice of values to be used.
-    /// * `threshold` - The threshold value to use.
-    pub fn compute<V: GridValue>(&mut self, values: &[V], threshold: V) -> Result<Vec<Ring>> {
+    pub fn compute<V: GridValue, G: Grid<V>>(
+        &mut self,
+        values: &G,
+        threshold: V,
+    ) -> Result<Vec<Ring>> {
+        let (width, _) = values.size();
+
         macro_rules! case_stitch {
             ($ix:expr, $x:ident, $y:ident, $result:expr) => {
                 CASES[$ix]
                     .iter()
-                    .map(|ring| self.stitch(&ring, $x, $y, $result))
+                    .map(|ring| self.stitch(width, &ring, $x, $y, $result))
                     .collect::<Result<Vec<()>>>()?;
             };
         }
@@ -112,85 +109,66 @@ impl IsoRingBuilder {
             self.clear();
         }
         let mut result = Vec::new();
-        let dx = self.dx as i64;
-        let dy = self.dy as i64;
-        let mut x = -1;
-        let mut y = -1;
-        let mut t0;
-        let mut t1;
-        let mut t2;
-        let mut t3;
 
-        // Special case for the first row (y = -1, t2 = t3 = 0).
-        t1 = (values[0] >= threshold) as usize;
-        case_stitch!(t1 << 1, x, y, &mut result);
-        x += 1;
-        while x < dx - 1 {
-            t0 = t1;
-            t1 = (values[(x + 1) as usize] >= threshold) as usize;
-            case_stitch!(t0 | t1 << 1, x, y, &mut result);
-            x += 1;
-        }
-        case_stitch!(t1, x, y, &mut result);
-
-        // General case for the intermediate rows.
-        y += 1;
-        while y < dy - 1 {
-            x = -1;
-            t1 = (values[(y * dx + dx) as usize] >= threshold) as usize;
-            t2 = (values[(y * dx) as usize] >= threshold) as usize;
-            case_stitch!(t1 << 1 | t2 << 2, x, y, &mut result);
-            x += 1;
-            while x < dx - 1 {
-                t0 = t1;
-                t1 = (values[(y * dx + dx + x + 1) as usize] >= threshold) as usize;
-                t3 = t2;
-                t2 = (values[(y * dx + x + 1) as usize] >= threshold) as usize;
-                case_stitch!(t0 | t1 << 1 | t2 << 2 | t3 << 3, x, y, &mut result);
-                x += 1;
+        for Extent {
+            top_left,
+            bottom_right,
+        } in values.extents()
+        {
+            for y in top_left.y..=bottom_right.y + 1 {
+                // t3 t2
+                // t0 t1
+                let mut t3 = values
+                    .get_point(Coord::from((top_left.x - 1, y - 1)))
+                    .map(|v| (v >= threshold) as usize);
+                let mut t0 = values
+                    .get_point(Coord::from((top_left.x - 1, y)))
+                    .map(|v| (v >= threshold) as usize);
+                let mut t2;
+                let mut t1;
+                for x in top_left.x..=bottom_right.x + 1 {
+                    t2 = values
+                        .get_point(Coord::from((x, y - 1)))
+                        .map(|v| (v >= threshold) as usize);
+                    t1 = values
+                        .get_point(Coord::from((x, y)))
+                        .map(|v| (v >= threshold) as usize);
+                    // TODO: Implement proper NODATA line extension as seen in GDAL (https://gdal.org/api/gdal_alg.html#_CPPv414GDAL_CG_Createiiiddd17GDALContourWriterPv)
+                    if let (Some(t0), Some(t1), Some(t2), Some(t3)) = (t0, t1, t2, t3) {
+                        case_stitch!(t0 | t1 << 1 | t2 << 2 | t3 << 3, x, y, &mut result);
+                    }
+                    t0 = t1;
+                    t3 = t2;
+                }
             }
-            case_stitch!(t1 | t2 << 3, x, y, &mut result);
-            y += 1;
         }
-
-        // Special case for the last row (y = dy - 1, t0 = t1 = 0).
-        x = -1;
-        t2 = (values[(y * dx) as usize] >= threshold) as usize;
-        case_stitch!(t2 << 2, x, y, &mut result);
-        x += 1;
-        while x < dx - 1 {
-            t3 = t2;
-            t2 = (values[(y * dx + x + 1) as usize] >= threshold) as usize;
-            case_stitch!(t2 << 2 | t3 << 3, x, y, &mut result);
-            x += 1;
-        }
-        case_stitch!(t2 << 3, x, y, &mut result);
         self.is_empty = false;
         Ok(result)
     }
 
-    fn index(&self, point: &Pt) -> usize {
-        (point.x as usize) * 2 + (point.y as usize) * (self.dx + 1usize) * 4
+    fn index(&self, width: usize, point: &Pt) -> usize {
+        (point.x * 2.0 + point.y * ((width + 2) * 4) as f64) as usize
     }
 
     // Stitches segments to rings.
     fn stitch(
         &mut self,
-        line: &[Vec<Float>],
+        width: usize,
+        line: &[Vec<f64>],
         x: i64,
         y: i64,
         result: &mut Vec<Ring>,
     ) -> Result<()> {
         let start = Coord {
-            x: line[0][0] + x as Float,
-            y: line[0][1] + y as Float,
+            x: line[0][0] + x as f64,
+            y: line[0][1] + y as f64,
         };
         let end = Coord {
-            x: line[1][0] + x as Float,
-            y: line[1][1] + y as Float,
+            x: line[1][0] + x as f64,
+            y: line[1][1] + y as f64,
         };
-        let start_index = self.index(&start);
-        let end_index = self.index(&end);
+        let start_index = self.index(width, &start);
+        let end_index = self.index(width, &end);
         if self.fragment_by_end.contains_key(&start_index) {
             if self.fragment_by_start.contains_key(&end_index) {
                 let f_ix = self
