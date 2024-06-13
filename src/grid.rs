@@ -54,7 +54,10 @@ impl<V: GridValue> Grid<V> for Buffer<V> {
     }
 
     fn get_point(&self, coord: Coord<i64>) -> Option<V> {
-        if coord.x < 0 || coord.y < 0 || coord.x >= self.width as i64 || coord.y >= self.height as i64
+        if coord.x < 0
+            || coord.y < 0
+            || coord.x >= self.width as i64
+            || coord.y >= self.height as i64
         {
             None
         } else {

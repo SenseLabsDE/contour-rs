@@ -14,10 +14,6 @@ use rustc_hash::FxHashMap;
 ///
 /// [`contour_rings`]: fn.contour_rings.html
 pub struct ContourBuilder {
-    /// The number of columns in the grid
-    dx: usize,
-    /// The number of rows in the grid
-    dy: usize,
     /// Whether to smooth the contours
     smooth: bool,
     /// The horizontal coordinate for the origin of the grid.
@@ -41,10 +37,8 @@ impl ContourBuilder {
     /// * `dx` - The number of columns in the grid.
     /// * `dy` - The number of rows in the grid.
     /// * `smooth` - Whether or not the generated rings will be smoothed using linear interpolation.
-    pub fn new(dx: usize, dy: usize, smooth: bool) -> Self {
+    pub fn new(smooth: bool) -> Self {
         ContourBuilder {
-            dx,
-            dy,
             smooth,
             x_origin: 0.,
             y_origin: 0.,
@@ -83,8 +77,7 @@ impl ContourBuilder {
         values: &G,
         value: V,
     ) -> Result<()> {
-        let dx = self.dx;
-        let dy = self.dy;
+        let (dx, dy) = values.size();
 
         macro_rules! cast {
             ($num:expr) => {
@@ -131,9 +124,6 @@ impl ContourBuilder {
         values: &G,
         thresholds: &[V],
     ) -> Result<Vec<Line<V>>> {
-        if values.size() != (self.dx, self.dy) {
-            return Err(new_error(ErrorKind::BadDimension));
-        }
         let mut isoring = IsoRingBuilder::new();
         thresholds
             .iter()
@@ -188,9 +178,6 @@ impl ContourBuilder {
         values: &G,
         thresholds: &[V],
     ) -> Result<Vec<Contour<V>>> {
-        if values.size() != (self.dx, self.dy) {
-            return Err(new_error(ErrorKind::BadDimension));
-        }
         let mut isoring = IsoRingBuilder::new();
         thresholds
             .iter()
@@ -263,9 +250,6 @@ impl ContourBuilder {
         // We will compute rings as previously, but we will
         // iterate over the contours in pairs and use the paths from the lower threshold
         // and the path from the upper threshold to create the isoband.
-        if values.size() != (self.dx, self.dy) {
-            return Err(new_error(ErrorKind::BadDimension));
-        }
         if thresholds.len() < 2 {
             return Err(new_error(ErrorKind::Unexpected));
         }

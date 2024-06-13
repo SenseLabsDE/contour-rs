@@ -53,7 +53,7 @@ criterion_group!(
 criterion_main!(benches);
 
 fn bench_build_contours_multiple_thresholds(c: &mut Criterion) {
-    let cb = ContourBuilder::new(16, 19, true);
+    let cb = ContourBuilder::new(true);
     let buffer = Buffer::new(VALUES2.to_vec(), 14, 17).unwrap();
     c.bench_function("build_contours_multiple_thresholds", |b| {
         b.iter(|| black_box(cb.contours(&buffer, &[0.5, 1.5, 2.5]).unwrap()))
@@ -61,7 +61,7 @@ fn bench_build_contours_multiple_thresholds(c: &mut Criterion) {
 }
 
 fn bench_build_contours_multiple_thresholds_and_x_y_steps_and_origins(c: &mut Criterion) {
-    let cb = ContourBuilder::new(16, 19, true)
+    let cb = ContourBuilder::new(true)
         .x_step(0.5)
         .y_step(0.5)
         .x_origin(0.25)
@@ -74,7 +74,7 @@ fn bench_build_contours_multiple_thresholds_and_x_y_steps_and_origins(c: &mut Cr
 }
 
 fn bench_build_geojson_contour(c: &mut Criterion) {
-    let cb = ContourBuilder::new(12, 13, true);
+    let cb = ContourBuilder::new(true);
     let buffer = Buffer::new(VALUES.to_vec(), 10, 11).unwrap();
     c.bench_function("build_geojson_contour", |b| {
         b.iter(|| black_box(cb.contours(&buffer, &[0.5]).unwrap()))
@@ -82,7 +82,7 @@ fn bench_build_geojson_contour(c: &mut Criterion) {
 }
 
 fn bench_build_geojson_contour_no_smoothing(c: &mut Criterion) {
-    let cb = ContourBuilder::new(12, 13, false);
+    let cb = ContourBuilder::new(false);
     let buffer = Buffer::new(VALUES.to_vec(), 10, 11).unwrap();
     c.bench_function("build_geojson_contour_no_smoothing", |b| {
         b.iter(|| black_box(cb.contours(&buffer, &[0.5]).unwrap()))
@@ -121,7 +121,7 @@ fn bench_contourbuilder_isobands_volcano_without_xy_step_xy_origin(c: &mut Crite
         |b| {
             b.iter(|| {
                 black_box(
-                    ContourBuilder::new(w + 2, h + 2, true)
+                    ContourBuilder::new(true)
                         .isobands(
                             &buffer,
                             &[
@@ -155,7 +155,7 @@ fn bench_contourbuilder_isobands_pot_pop_fr_without_xy_step_xy_origin(c: &mut Cr
         |b| {
             b.iter(|| {
                 black_box(
-                    ContourBuilder::new(w + 2, h + 2, true)
+                    ContourBuilder::new(true)
                         .isobands(
                             &buffer,
                             &[
