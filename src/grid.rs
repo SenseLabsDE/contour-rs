@@ -44,17 +44,17 @@ impl<V: GridValue> Buffer<V> {
 impl<V: GridValue> Grid<V> for Buffer<V> {
     fn extents(&self) -> impl IntoIterator<Item = Extent> {
         Some(Extent {
-            top_left: Coord::zero(),
-            bottom_right: Coord::from((self.width as i64, self.height as i64)),
+            top_left: Coord::from((-1, -1)),
+            bottom_right: Coord::from((self.width as i64 + 1, self.height as i64 + 1)),
         })
     }
 
     fn size(&self) -> (usize, usize) {
-        (self.width, self.height)
+        (self.width + 2, self.height + 2)
     }
 
     fn get_point(&self, coord: Coord<i64>) -> Option<V> {
-        if coord.x < 0 || coord.y < 0 || coord.x > self.width as i64 || coord.y > self.height as i64
+        if coord.x < 0 || coord.y < 0 || coord.x >= self.width as i64 || coord.y >= self.height as i64
         {
             None
         } else {
@@ -197,7 +197,7 @@ impl<const TILE_SIZE: usize, V: GridValue> Grid<V> for TiledBuffer<TILE_SIZE, V>
             return None;
         }
         let (t_x, t_y) = (coord.x as usize / TILE_SIZE, coord.y as usize / TILE_SIZE);
-        if t_x > self.width || t_y > self.height {
+        if t_x >= self.width || t_y >= self.height {
             None
         } else {
             let (rel_x, rel_y) = (coord.x as usize % TILE_SIZE, coord.y as usize % TILE_SIZE);
