@@ -1,4 +1,3 @@
-use std::simd::Simd;
 use crate::{
     error::{new_error, ErrorKind, Result},
     grid::{Extent, Grid},
@@ -116,7 +115,8 @@ impl IsoRingBuilder {
             bottom_right,
         } in values.extents()
         {
-            for y in top_left.y..=bottom_right.y + 1 {
+            // TODO: This might need to be y+1 and x+1, but in the tiled case that leads to duplicate calculations...
+            for y in top_left.y..=bottom_right.y {
                 // t3 t2
                 // t0 t1
                 let mut t3 = values
@@ -125,7 +125,7 @@ impl IsoRingBuilder {
                     .get_point(Coord::from((top_left.x - 1, y))).map(|v| (v >= threshold) as usize);
                 let mut t2;
                 let mut t1;
-                for x in top_left.x..=bottom_right.x + 1 {
+                for x in top_left.x..=bottom_right.x {
                     t2 = values
                         .get_point(Coord::from((x, y - 1)));
                     t1 = values
