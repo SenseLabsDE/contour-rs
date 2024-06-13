@@ -8,6 +8,8 @@ where
     /// Provides an iterator over relevant areas of the grid. Extents must not overlap and must extend one pixel beyond the line where contours should stop.
     /// In the case of a rectangular dataset, this means that the extent should add a single row/column on each side
     fn extents(&self) -> impl IntoIterator<Item = Extent>;
+    /// Full extent of the dataset, all extents returned by `extents` need to be contained within it.
+    /// In the case of a rectangular dataset with the aforementioned additional rows/columns, this should return the width/height of the original data + 2
     fn size(&self) -> (usize, usize);
     fn get_point(&self, coord: Coord<i64>) -> Option<V>;
 }
