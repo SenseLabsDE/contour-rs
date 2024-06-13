@@ -45,7 +45,7 @@ impl<V: GridValue> Grid<V> for Buffer<V> {
     fn extents(&self) -> impl IntoIterator<Item = Extent> {
         Some(Extent {
             top_left: Coord::from((-1, -1)),
-            bottom_right: Coord::from((self.width as i64 + 1, self.height as i64 + 1)),
+            bottom_right: Coord::from((self.width as i64, self.height as i64)),
         })
     }
 
