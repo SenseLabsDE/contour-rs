@@ -126,7 +126,7 @@ impl IsoRingBuilder {
                         let idx = v0 | v1 << 1 | v2 << 2 | v3 << 3;
                         CASES[idx]
                             .iter()
-                            .map(|ring| self.stitch(width, &ring, x - 1, y, &mut result))
+                            .map(|ring| self.stitch(width, ring, x - 1, y, &mut result))
                             .collect::<Result<Vec<()>>>()?;
                         t0 = Some(v1);
                         t3 = Some(v2);
