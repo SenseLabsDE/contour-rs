@@ -9,29 +9,22 @@ where
     ///
     /// In the case of a rectangular dataset, this means that the extent should add a single row/column on each side
     fn extents(&self) -> impl IntoIterator<Item = Extent>;
-    /// Full extent of the dataset, all extents returned by `extents` need to be contained within it.
+    /// Full extent of the dataset with the top left corner being at (0, 0). All extents returned by `extents` need to be contained within it.
     ///
     /// In the case of a rectangular dataset with the aforementioned additional rows/columns, this should return the width/height of the original data + 2
     ///
-    /// The default implementation calculates the size based on the minimum and maximum return values of `extents`
+    /// The default implementation calculates the size based on the maximum return values of `extents`
     fn size(&self) -> (usize, usize) {
-        if let Some(full_extent) = self.extents().into_iter().reduce(|acc, extent| Extent {
-            top_left: Coord::from((
-                acc.top_left.x.min(extent.top_left.x),
-                acc.top_left.y.min(extent.top_left.y),
-            )),
-            bottom_right: Coord::from((
-                acc.bottom_right.x.max(extent.bottom_right.x),
-                acc.bottom_right.y.max(extent.bottom_right.y),
-            )),
-        }) {
-            (
-                (full_extent.bottom_right.x - full_extent.top_left.x + 1) as usize,
-                (full_extent.bottom_right.y - full_extent.top_left.y + 1) as usize,
-            )
-        } else {
-            (0, 0)
-        }
+        let c = self
+            .extents()
+            .into_iter()
+            .fold(Coord::zero(), |acc: Coord<i64>, extent| {
+                Coord::from((
+                    acc.x.max(extent.bottom_right.x),
+                    acc.y.max(extent.bottom_right.y),
+                ))
+            });
+        (c.x as usize, c.y as usize)
     }
 
     fn get_point(&self, coord: Coord<i64>) -> Option<V>;
