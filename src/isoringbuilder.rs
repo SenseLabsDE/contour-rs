@@ -1,3 +1,4 @@
+use std::simd::Simd;
 use crate::{
     error::{new_error, ErrorKind, Result},
     grid::{Extent, Grid},
@@ -119,9 +120,9 @@ impl IsoRingBuilder {
                 // t3 t2
                 // t0 t1
                 let mut t3 = values
-                    .get_point(Coord::from((top_left.x - 1, y - 1)));
+                    .get_point(Coord::from((top_left.x - 1, y - 1))).map(|v| (v >= threshold) as usize);
                 let mut t0 = values
-                    .get_point(Coord::from((top_left.x - 1, y)));
+                    .get_point(Coord::from((top_left.x - 1, y))).map(|v| (v >= threshold) as usize);
                 let mut t2;
                 let mut t1;
                 for x in top_left.x..=bottom_right.x + 1 {
@@ -130,12 +131,15 @@ impl IsoRingBuilder {
                     t1 = values
                         .get_point(Coord::from((x, y)));
                     // TODO: Implement proper NODATA line extension as seen in GDAL (https://gdal.org/api/gdal_alg.html#_CPPv414GDAL_CG_Createiiiddd17GDALContourWriterPv)
-                    if let (Some(t0), Some(t1), Some(t2), Some(t3)) = (t0, t1, t2, t3) {
-                        let (t0, t1, t2, t3) = ((t0 >= threshold) as usize, (t1 >= threshold) as usize, (t2 >= threshold) as usize, (t3 >= threshold) as usize);
-                        case_stitch!(t0 | t1 << 1 | t2 << 2 | t3 << 3, x, y, &mut result);
+                    if let (Some(v0), Some(v1), Some(v2), Some(v3)) = (t0, t1, t2, t3) {
+                        let (v1, v2) = ((v1 >= threshold) as usize, (v2 >= threshold) as usize);
+                        case_stitch!(v0 | v1 << 1 | v2 << 2 | v3 << 3, x, y, &mut result);
+                        t0 = Some(v1);
+                        t3 = Some(v2);
+                    } else {
+                        t0 = t1.map(|v| (v >= threshold) as usize);
+                        t3 = t2.map(|v| (v >= threshold) as usize);
                     }
-                    t0 = t1;
-                    t3 = t2;
                 }
             }
         }
