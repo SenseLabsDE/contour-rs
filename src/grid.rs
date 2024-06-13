@@ -6,6 +6,8 @@ pub trait Grid<V>
 where
     V: GridValue,
 {
+    /// Provides an iterator over relevant areas of the grid. Extents must not overlap and must extend one pixel beyond the line where contours should stop.
+    /// In the case of a rectangular dataset, this means that the extent should add a single row/column on each side
     fn extents(&self) -> impl IntoIterator<Item = Extent>;
     fn size(&self) -> (usize, usize);
     fn get_point(&self, coord: Coord<i64>) -> Option<V>;
@@ -89,29 +91,79 @@ impl<const TILE_SIZE: usize, V: GridValue> TiledBuffer<TILE_SIZE, V> {
             Ok(())
         }
     }
+
+    fn has_tile(&self, x: i64, y: i64) -> bool {
+        if x < 0 || y < 0 || x >= self.width as i64 || y >= self.height as i64 {
+            false
+        } else {
+            self.tiles.get(y as usize * self.width + x as usize).filter(|v| !v.is_empty()).is_some()
+        }
+    }
 }
 
 impl<const TILE_SIZE: usize, V: GridValue> Grid<V> for TiledBuffer<TILE_SIZE, V> {
+    // +-----------------------+
+    // | 3 |      4        | 5 |
+    // |---+---------------+---|
+    // |   |               |   |
+    // | 2 |      0        | 6 |
+    // |   |               |   |
+    // |---+---------------+---|
+    // | 1 |      8        | 7 |
+    // +-----------------------+
+    // Each tile produces multiple extents to account for border regions
+    // 0..=4 are always produced
+    // 5..=8 are only produced if there is no neighbor in that direction (as it would include the same region in its 0..=4 extents)
+    //
+    // TODO: Investigate if merging extents meaningfully improves performance
     fn extents(&self) -> impl IntoIterator<Item = Extent> {
-        self.tiles.iter().enumerate().filter_map(|(idx, v)| {
+        self.tiles.iter().enumerate().flat_map(|(idx, v)| {
             if !v.is_empty() {
                 let t_y = (idx / self.width) as i64;
                 let t_x = (idx % self.width) as i64;
                 let t_s = TILE_SIZE as i64;
-                Some(Extent {
-                    top_left: Coord::from((t_x * t_s, t_y * t_s)),
-                    bottom_right: Coord::from(((t_x + 1) * t_s - 1, (t_y + 1) * t_s - 1)),
-                })
+                let top_left = Coord::from((t_x * t_s, t_y * t_s));
+                let bottom_right = Coord::from(((t_x + 1) * t_s - 1, (t_y + 1) * t_s - 1));
+                let mut extents = vec![
+                    Extent { top_left, bottom_right}, // 0
+                    Extent { top_left: Coord::from((top_left.x - 1, bottom_right.y)), bottom_right: Coord::from((top_left.x, bottom_right.y + 1))}, // 1,
+                    Extent { top_left: Coord::from((top_left.x - 1, top_left.y)), bottom_right: Coord::from((top_left.x, bottom_right.y))}, // 2,
+                    Extent { top_left: Coord::from((top_left.x - 1, top_left.y - 1)), bottom_right: top_left}, // 3,
+                    Extent { top_left: Coord::from((top_left.x, top_left.y - 1)), bottom_right: Coord::from((bottom_right.x, top_left.y))}, // 4
+                ];
+                // 5
+                if self.has_tile(t_x + 1, t_y - 1) {
+                    extents.push(Extent {
+                        top_left: Coord::from((bottom_right.x, top_left.y - 1)), bottom_right: Coord::from((bottom_right.x + 1, top_left.y))
+                    });
+                }
+                // 6
+                if self.has_tile(t_x + 1, t_y) {
+                    extents.push(Extent {
+                        top_left: Coord::from((bottom_right.x, top_left.y)), bottom_right: Coord::from((bottom_right.x + 1, bottom_right.y))
+                    });
+                }
+                // 7
+                if self.has_tile(t_x + 1, t_y + 1) {
+                    extents.push(Extent {
+                        top_left: bottom_right, bottom_right: Coord::from((bottom_right.x + 1, bottom_right.y + 1))
+                    });
+                }
+                // 8
+                if self.has_tile(t_x, t_y + 1) {
+                    extents.push(Extent {
+                        top_left: Coord::from((top_left.x, bottom_right.y)), bottom_right: Coord::from((bottom_right.x, bottom_right.y + 1))
+                    })
+                }
+                extents
             } else {
-                None
+                Vec::new()
             }
         })
-
-        //Some(Extent { top_left: Coord::zero(), bottom_right: Coord::from(((self.width * TILE_SIZE) as i64 - 1, (self.height * TILE_SIZE) as i64- 1)) })
     }
 
     fn size(&self) -> (usize, usize) {
-        (self.width * TILE_SIZE, self.height * TILE_SIZE)
+        (self.width * TILE_SIZE + 2, self.height * TILE_SIZE + 2)
     }
 
     fn get_point(&self, coord: Coord<i64>) -> Option<V> {

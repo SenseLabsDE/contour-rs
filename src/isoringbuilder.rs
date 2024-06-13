@@ -96,15 +96,6 @@ impl IsoRingBuilder {
     ) -> Result<Vec<Ring>> {
         let (width, _) = values.size();
 
-        macro_rules! case_stitch {
-            ($ix:expr, $x:ident, $y:ident, $result:expr) => {
-                CASES[$ix]
-                    .iter()
-                    .map(|ring| self.stitch(width, &ring, $x, $y, $result))
-                    .collect::<Result<Vec<()>>>()?;
-            };
-        }
-
         if !self.is_empty {
             self.clear();
         }
@@ -115,25 +106,28 @@ impl IsoRingBuilder {
             bottom_right,
         } in values.extents()
         {
-            // TODO: This might need to be y+1 and x+1, but in the tiled case that leads to duplicate calculations...
-            for y in top_left.y..=bottom_right.y {
+            for y in top_left.y..bottom_right.y {
                 // t3 t2
                 // t0 t1
                 let mut t3 = values
-                    .get_point(Coord::from((top_left.x - 1, y - 1))).map(|v| (v >= threshold) as usize);
+                    .get_point(Coord::from((top_left.x, y))).map(|v| (v >= threshold) as usize);
                 let mut t0 = values
-                    .get_point(Coord::from((top_left.x - 1, y))).map(|v| (v >= threshold) as usize);
+                    .get_point(Coord::from((top_left.x, y + 1))).map(|v| (v >= threshold) as usize);
                 let mut t2;
                 let mut t1;
-                for x in top_left.x..=bottom_right.x {
+                for x in top_left.x + 1..=bottom_right.x {
                     t2 = values
-                        .get_point(Coord::from((x, y - 1)));
-                    t1 = values
                         .get_point(Coord::from((x, y)));
+                    t1 = values
+                        .get_point(Coord::from((x, y + 1)));
                     // TODO: Implement proper NODATA line extension as seen in GDAL (https://gdal.org/api/gdal_alg.html#_CPPv414GDAL_CG_Createiiiddd17GDALContourWriterPv)
                     if let (Some(v0), Some(v1), Some(v2), Some(v3)) = (t0, t1, t2, t3) {
                         let (v1, v2) = ((v1 >= threshold) as usize, (v2 >= threshold) as usize);
-                        case_stitch!(v0 | v1 << 1 | v2 << 2 | v3 << 3, x, y, &mut result);
+                        let idx = v0 | v1 << 1 | v2 << 2 | v3 << 3;
+                        CASES[idx]
+                        .iter()
+                            .map(|ring| self.stitch(width, &ring, x - 1, y, &mut result))
+                            .collect::<Result<Vec<()>>>()?;
                         t0 = Some(v1);
                         t3 = Some(v2);
                     } else {
