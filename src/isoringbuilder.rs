@@ -1,6 +1,6 @@
-use crate::grid::{Extent, Grid};
 use crate::{
     error::{new_error, ErrorKind, Result},
+    grid::{Extent, Grid},
     GridValue, Pt, Ring,
 };
 use geo_types::Coord;
@@ -54,9 +54,9 @@ struct Fragment {
 /// * `dx` - The number of columns in the grid.
 /// * `dy` - The number of rows in the grid.
 
-pub fn contour_rings<V: GridValue, G: Grid<V>>(values: G, threshold: V) -> Result<Vec<Ring>> {
+pub fn contour_rings<V: GridValue, G: Grid<V>>(values: &G, threshold: V) -> Result<Vec<Ring>> {
     let mut isoring = IsoRingBuilder::new();
-    isoring.compute(&values, threshold)
+    isoring.compute(values, threshold)
 }
 
 /// Isoring generator to compute marching squares with isolines stitched into rings.
@@ -119,22 +119,19 @@ impl IsoRingBuilder {
                 // t3 t2
                 // t0 t1
                 let mut t3 = values
-                    .get_point(Coord::from((top_left.x - 1, y - 1)))
-                    .map(|v| (v >= threshold) as usize);
+                    .get_point(Coord::from((top_left.x - 1, y - 1)));
                 let mut t0 = values
-                    .get_point(Coord::from((top_left.x - 1, y)))
-                    .map(|v| (v >= threshold) as usize);
+                    .get_point(Coord::from((top_left.x - 1, y)));
                 let mut t2;
                 let mut t1;
                 for x in top_left.x..=bottom_right.x + 1 {
                     t2 = values
-                        .get_point(Coord::from((x, y - 1)))
-                        .map(|v| (v >= threshold) as usize);
+                        .get_point(Coord::from((x, y - 1)));
                     t1 = values
-                        .get_point(Coord::from((x, y)))
-                        .map(|v| (v >= threshold) as usize);
+                        .get_point(Coord::from((x, y)));
                     // TODO: Implement proper NODATA line extension as seen in GDAL (https://gdal.org/api/gdal_alg.html#_CPPv414GDAL_CG_Createiiiddd17GDALContourWriterPv)
                     if let (Some(t0), Some(t1), Some(t2), Some(t3)) = (t0, t1, t2, t3) {
+                        let (t0, t1, t2, t3) = ((t0 >= threshold) as usize, (t1 >= threshold) as usize, (t2 >= threshold) as usize, (t3 >= threshold) as usize);
                         case_stitch!(t0 | t1 << 1 | t2 << 2 | t3 << 3, x, y, &mut result);
                     }
                     t0 = t1;
