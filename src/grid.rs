@@ -1,5 +1,4 @@
-use crate::error::new_error;
-use crate::{ErrorKind, GridValue, Result};
+use crate::{error::new_error, ErrorKind, GridValue, Result};
 use geo_types::Coord;
 
 pub trait Grid<V>
@@ -96,7 +95,10 @@ impl<const TILE_SIZE: usize, V: GridValue> TiledBuffer<TILE_SIZE, V> {
         if x < 0 || y < 0 || x >= self.width as i64 || y >= self.height as i64 {
             false
         } else {
-            self.tiles.get(y as usize * self.width + x as usize).filter(|v| !v.is_empty()).is_some()
+            self.tiles
+                .get(y as usize * self.width + x as usize)
+                .filter(|v| !v.is_empty())
+                .is_some()
         }
     }
 }
@@ -125,34 +127,58 @@ impl<const TILE_SIZE: usize, V: GridValue> Grid<V> for TiledBuffer<TILE_SIZE, V>
                 let top_left = Coord::from((t_x * t_s, t_y * t_s));
                 let bottom_right = Coord::from(((t_x + 1) * t_s - 1, (t_y + 1) * t_s - 1));
                 let mut extents = vec![
-                    Extent { top_left, bottom_right}, // 0
-                    Extent { top_left: Coord::from((top_left.x - 1, bottom_right.y)), bottom_right: Coord::from((top_left.x, bottom_right.y + 1))}, // 1,
-                    Extent { top_left: Coord::from((top_left.x - 1, top_left.y)), bottom_right: Coord::from((top_left.x, bottom_right.y))}, // 2,
-                    Extent { top_left: Coord::from((top_left.x - 1, top_left.y - 1)), bottom_right: top_left}, // 3,
-                    Extent { top_left: Coord::from((top_left.x, top_left.y - 1)), bottom_right: Coord::from((bottom_right.x, top_left.y))}, // 4
+                    // 0
+                    Extent {
+                        top_left,
+                        bottom_right,
+                    },
+                    // 1
+                    Extent {
+                        top_left: Coord::from((top_left.x - 1, bottom_right.y)),
+                        bottom_right: Coord::from((top_left.x, bottom_right.y + 1)),
+                    },
+                    // 2
+                    Extent {
+                        top_left: Coord::from((top_left.x - 1, top_left.y)),
+                        bottom_right: Coord::from((top_left.x, bottom_right.y)),
+                    },
+                    // 3
+                    Extent {
+                        top_left: Coord::from((top_left.x - 1, top_left.y - 1)),
+                        bottom_right: top_left,
+                    },
+                    // 4
+                    Extent {
+                        top_left: Coord::from((top_left.x, top_left.y - 1)),
+                        bottom_right: Coord::from((bottom_right.x, top_left.y)),
+                    },
                 ];
                 // 5
                 if self.has_tile(t_x + 1, t_y - 1) {
                     extents.push(Extent {
-                        top_left: Coord::from((bottom_right.x, top_left.y - 1)), bottom_right: Coord::from((bottom_right.x + 1, top_left.y))
+                        top_left: Coord::from((bottom_right.x, top_left.y - 1)),
+                        bottom_right: Coord::from((bottom_right.x + 1, top_left.y)),
                     });
                 }
                 // 6
                 if self.has_tile(t_x + 1, t_y) {
                     extents.push(Extent {
-                        top_left: Coord::from((bottom_right.x, top_left.y)), bottom_right: Coord::from((bottom_right.x + 1, bottom_right.y))
+                        top_left: Coord::from((bottom_right.x, top_left.y)),
+                        bottom_right: Coord::from((bottom_right.x + 1, bottom_right.y)),
                     });
                 }
                 // 7
                 if self.has_tile(t_x + 1, t_y + 1) {
                     extents.push(Extent {
-                        top_left: bottom_right, bottom_right: Coord::from((bottom_right.x + 1, bottom_right.y + 1))
+                        top_left: bottom_right,
+                        bottom_right: Coord::from((bottom_right.x + 1, bottom_right.y + 1)),
                     });
                 }
                 // 8
                 if self.has_tile(t_x, t_y + 1) {
                     extents.push(Extent {
-                        top_left: Coord::from((top_left.x, bottom_right.y)), bottom_right: Coord::from((bottom_right.x, bottom_right.y + 1))
+                        top_left: Coord::from((top_left.x, bottom_right.y)),
+                        bottom_right: Coord::from((bottom_right.x, bottom_right.y + 1)),
                     })
                 }
                 extents

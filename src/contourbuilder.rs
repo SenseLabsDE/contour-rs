@@ -1,7 +1,7 @@
-use crate::grid::Grid;
 use crate::{
     area::{area, contains},
     error::{new_error, ErrorKind, Result},
+    grid::Grid,
     isoringbuilder::IsoRingBuilder,
     Band, Contour, Error, GridValue, Line, Ring,
 };

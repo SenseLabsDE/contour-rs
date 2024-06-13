@@ -110,22 +110,22 @@ impl IsoRingBuilder {
                 // t3 t2
                 // t0 t1
                 let mut t3 = values
-                    .get_point(Coord::from((top_left.x, y))).map(|v| (v >= threshold) as usize);
+                    .get_point(Coord::from((top_left.x, y)))
+                    .map(|v| (v >= threshold) as usize);
                 let mut t0 = values
-                    .get_point(Coord::from((top_left.x, y + 1))).map(|v| (v >= threshold) as usize);
+                    .get_point(Coord::from((top_left.x, y + 1)))
+                    .map(|v| (v >= threshold) as usize);
                 let mut t2;
                 let mut t1;
                 for x in top_left.x + 1..=bottom_right.x {
-                    t2 = values
-                        .get_point(Coord::from((x, y)));
-                    t1 = values
-                        .get_point(Coord::from((x, y + 1)));
+                    t2 = values.get_point(Coord::from((x, y)));
+                    t1 = values.get_point(Coord::from((x, y + 1)));
                     // TODO: Implement proper NODATA line extension as seen in GDAL (https://gdal.org/api/gdal_alg.html#_CPPv414GDAL_CG_Createiiiddd17GDALContourWriterPv)
                     if let (Some(v0), Some(v1), Some(v2), Some(v3)) = (t0, t1, t2, t3) {
                         let (v1, v2) = ((v1 >= threshold) as usize, (v2 >= threshold) as usize);
                         let idx = v0 | v1 << 1 | v2 << 2 | v3 << 3;
                         CASES[idx]
-                        .iter()
+                            .iter()
                             .map(|ring| self.stitch(width, &ring, x - 1, y, &mut result))
                             .collect::<Result<Vec<()>>>()?;
                         t0 = Some(v1);
