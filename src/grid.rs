@@ -6,11 +6,34 @@ where
     V: GridValue,
 {
     /// Provides an iterator over relevant areas of the grid. Extents must not overlap and must extend one pixel beyond the line where contours should stop.
+    ///
     /// In the case of a rectangular dataset, this means that the extent should add a single row/column on each side
     fn extents(&self) -> impl IntoIterator<Item = Extent>;
     /// Full extent of the dataset, all extents returned by `extents` need to be contained within it.
+    ///
     /// In the case of a rectangular dataset with the aforementioned additional rows/columns, this should return the width/height of the original data + 2
-    fn size(&self) -> (usize, usize);
+    ///
+    /// The default implementation calculates the size based on the minimum and maximum return values of `extents`
+    fn size(&self) -> (usize, usize) {
+        if let Some(full_extent) = self.extents().into_iter().reduce(|acc, extent| Extent {
+            top_left: Coord::from((
+                acc.top_left.x.min(extent.top_left.x),
+                acc.top_left.y.min(extent.top_left.y),
+            )),
+            bottom_right: Coord::from((
+                acc.bottom_right.x.max(extent.bottom_right.x),
+                acc.bottom_right.y.max(extent.bottom_right.y),
+            )),
+        }) {
+            (
+                (full_extent.bottom_right.x - full_extent.top_left.x + 1) as usize,
+                (full_extent.bottom_right.y - full_extent.top_left.y + 1) as usize,
+            )
+        } else {
+            (0, 0)
+        }
+    }
+
     fn get_point(&self, coord: Coord<i64>) -> Option<V>;
 }
 
@@ -49,10 +72,6 @@ impl<V: GridValue> Grid<V> for Buffer<V> {
             top_left: Coord::from((-1, -1)),
             bottom_right: Coord::from((self.width as i64, self.height as i64)),
         })
-    }
-
-    fn size(&self) -> (usize, usize) {
-        (self.width + 2, self.height + 2)
     }
 
     fn get_point(&self, coord: Coord<i64>) -> Option<V> {
@@ -191,10 +210,6 @@ impl<const TILE_SIZE: usize, V: GridValue> Grid<V> for TiledBuffer<TILE_SIZE, V>
                 Vec::new()
             }
         })
-    }
-
-    fn size(&self) -> (usize, usize) {
-        (self.width * TILE_SIZE + 2, self.height * TILE_SIZE + 2)
     }
 
     fn get_point(&self, coord: Coord<i64>) -> Option<V> {
