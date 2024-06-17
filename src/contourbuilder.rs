@@ -71,7 +71,7 @@ impl ContourBuilder {
         self
     }
 
-    fn smooth_linear<V: GridValue, G: Grid<V>>(
+    fn smooth_linear<V: GridValue, G: Grid<Value = V>>(
         &self,
         ring: &mut Ring,
         values: &G,
@@ -119,7 +119,7 @@ impl ContourBuilder {
     ///
     /// * `values` - The slice of values to be used.
     /// * `thresholds` - The slice of thresholds values to be used.
-    pub fn lines<V: GridValue, G: Grid<V>>(
+    pub fn lines<V: GridValue, G: Grid<Value = V>>(
         &self,
         values: &G,
         thresholds: &[V],
@@ -131,7 +131,7 @@ impl ContourBuilder {
             .collect()
     }
 
-    fn line<V: GridValue, G: Grid<V>>(
+    fn line<V: GridValue, G: Grid<Value = V>>(
         &self,
         values: &G,
         threshold: V,
@@ -173,7 +173,7 @@ impl ContourBuilder {
     ///
     /// * `values` - The slice of values to be used.
     /// * `thresholds` - The slice of thresholds values to be used.
-    pub fn contours<V: GridValue, G: Grid<V>>(
+    pub fn contours<V: GridValue, G: Grid<Value = V>>(
         &self,
         values: &G,
         thresholds: &[V],
@@ -185,7 +185,7 @@ impl ContourBuilder {
             .collect()
     }
 
-    fn contour<V: GridValue, G: Grid<V>>(
+    fn contour<V: GridValue, G: Grid<Value = V>>(
         &self,
         values: &G,
         threshold: V,
@@ -242,7 +242,7 @@ impl ContourBuilder {
     /// * `values` - The slice of values to be used.
     /// * `thresholds` - The slice of thresholds values to be used
     ///                  (have to be equal to or greater than 2).
-    pub fn isobands<V: GridValue, G: Grid<V>>(
+    pub fn isobands<V: GridValue, G: Grid<Value = V>>(
         &self,
         values: &G,
         thresholds: &[V],

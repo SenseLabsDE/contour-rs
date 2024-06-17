@@ -1,10 +1,8 @@
 use crate::{error::new_error, ErrorKind, GridValue, Result};
 use geo_types::Coord;
 
-pub trait Grid<V>
-where
-    V: GridValue,
-{
+pub trait Grid {
+    type Value: GridValue;
     /// Provides an iterator over relevant areas of the grid. Extents must not overlap and must extend one pixel beyond the line where contours should stop.
     ///
     /// In the case of a rectangular dataset, this means that the extent should add a single row/column on each side
@@ -27,7 +25,7 @@ where
         (c.x as usize, c.y as usize)
     }
 
-    fn get_point(&self, coord: Coord<i64>) -> Option<V>;
+    fn get_point(&self, coord: Coord<i64>) -> Option<Self::Value>;
 }
 
 pub struct Extent {
@@ -59,7 +57,9 @@ impl<V: GridValue> Buffer<V> {
     }
 }
 
-impl<V: GridValue> Grid<V> for Buffer<V> {
+impl<V: GridValue> Grid for Buffer<V> {
+    type Value = V;
+
     fn extents(&self) -> impl IntoIterator<Item = Extent> {
         Some(Extent {
             top_left: Coord::from((-1, -1)),
@@ -120,7 +120,8 @@ impl<const TILE_SIZE: usize, V: GridValue> TiledBuffer<TILE_SIZE, V> {
     }
 }
 
-impl<const TILE_SIZE: usize, V: GridValue> Grid<V> for TiledBuffer<TILE_SIZE, V> {
+impl<const TILE_SIZE: usize, V: GridValue> Grid for TiledBuffer<TILE_SIZE, V> {
+    type Value = V;
     // +-----------------------+
     // | 3 |      4        | 5 |
     // |---+---------------+---|
@@ -221,12 +222,12 @@ impl<const TILE_SIZE: usize, V: GridValue> Grid<V> for TiledBuffer<TILE_SIZE, V>
     }
 }
 
-pub struct NoDataMask<V: GridValue, T: Grid<V>> {
+pub struct NoDataMask<V: GridValue, T: Grid<Value = V>> {
     inner: T,
     no_data: V,
 }
 
-impl<V: GridValue, T: Grid<V>> NoDataMask<V, T> {
+impl<V: GridValue, T: Grid<Value = V>> NoDataMask<V, T> {
     pub fn new(inner: T, no_data: V) -> Self {
         Self { inner, no_data }
     }
@@ -236,7 +237,8 @@ impl<V: GridValue, T: Grid<V>> NoDataMask<V, T> {
     }
 }
 
-impl<V: GridValue, T: Grid<V>> Grid<V> for NoDataMask<V, T> {
+impl<V: GridValue, T: Grid<Value = V>> Grid for NoDataMask<V, T> {
+    type Value = V;
     fn extents(&self) -> impl IntoIterator<Item = Extent> {
         self.inner.extents()
     }

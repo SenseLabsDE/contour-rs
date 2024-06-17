@@ -54,7 +54,10 @@ struct Fragment {
 /// * `dx` - The number of columns in the grid.
 /// * `dy` - The number of rows in the grid.
 
-pub fn contour_rings<V: GridValue, G: Grid<V>>(values: &G, threshold: V) -> Result<Vec<Ring>> {
+pub fn contour_rings<V: GridValue, G: Grid<Value = V>>(
+    values: &G,
+    threshold: V,
+) -> Result<Vec<Ring>> {
     let mut isoring = IsoRingBuilder::new();
     isoring.compute(values, threshold)
 }
@@ -89,7 +92,7 @@ impl IsoRingBuilder {
     /// # Arguments
     ///
     /// * `values` - The slice of values to be used.
-    pub fn compute<V: GridValue, G: Grid<V>>(
+    pub fn compute<V: GridValue, G: Grid<Value = V>>(
         &mut self,
         values: &G,
         threshold: V,
