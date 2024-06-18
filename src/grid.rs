@@ -100,7 +100,7 @@ impl<const TILE_SIZE: usize, V: GridValue> TiledBuffer<TILE_SIZE, V> {
     }
 
     pub fn set_tile(&mut self, x: usize, y: usize, data: Vec<V>) -> Result<()> {
-        if data.len() != TILE_SIZE * TILE_SIZE || x > self.width || y > self.height {
+        if data.len() != TILE_SIZE * TILE_SIZE || x >= self.width || y >= self.height {
             Err(new_error(ErrorKind::BadDimension))
         } else {
             self.tiles[y * self.width + x] = data;
