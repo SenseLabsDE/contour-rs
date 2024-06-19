@@ -140,7 +140,11 @@ impl IsoRingBuilder {
                 }
             }
         }
+
         self.is_empty = false;
+
+        result.extend(self.f.drain().map(|v| v.ring));
+
         Ok(result)
     }
 
