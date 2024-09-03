@@ -3,9 +3,9 @@ use geo_types::Coord;
 
 pub trait Grid {
     type Value: GridValue;
-    /// Provides an iterator over relevant areas of the grid. Extents must not overlap and must extend one pixel beyond the line where contours should stop.
-    ///
-    /// In the case of a rectangular dataset, this means that the extent should add a single row/column on each side
+    /// Provides an iterator over relevant areas of the grid. Adjacent areas should overlap by one pixel and areas at the edge should extend one pixel beyond the line where contours should stop.
+    /// Returned coordinates are treated as inclusive ranges.
+    /// In the case of a rectangular dataset, this means that the extent should add a single row/column on each side.
     fn extents(&self) -> impl IntoIterator<Item = Extent>;
     /// Full extent of the dataset with the top left corner being at (0, 0). All extents returned by `extents` need to be contained within it.
     ///
@@ -123,18 +123,19 @@ impl<const TILE_SIZE: usize, V: GridValue> TiledBuffer<TILE_SIZE, V> {
 impl<const TILE_SIZE: usize, V: GridValue> Grid for TiledBuffer<TILE_SIZE, V> {
     type Value = V;
     // +-----------------------+
-    // | 3 |      4        | 5 |
+    // | b |      3        | c |
     // |---+---------------+---|
     // |   |               |   |
-    // | 2 |      0        | 6 |
+    // | 2 |      0        | 4 |
     // |   |               |   |
     // |---+---------------+---|
-    // | 1 |      8        | 7 |
+    // | a |      1        | d |
     // +-----------------------+
-    // Each tile produces multiple extents to account for border regions
-    // 0..=4 are always produced
-    // 5..=8 are only produced if there is no neighbor in that direction (as it would include the same region in its 0..=4 extents)
-    //
+    // Each tile produces multiple extents to account for regions in between tiles and at dataset edges
+    // 0 is always returned, the rest is returned based on two separate priority tests for corners and straight edges.
+    // 1 has higher priority than 2, and a has higher priority than b.
+    // The 1 tile is always returned. The 3 tile can only be returned if there is no higher priority 1 tile overlapping with it from a tile above.
+    // The a tile is also always returned, and can prevent b from being returned by the tile below or c from being returned by the tile to the lower left.
     // TODO: Investigate if merging extents meaningfully improves performance
     fn extents(&self) -> impl IntoIterator<Item = Extent> {
         self.tiles.iter().enumerate().flat_map(|(idx, v)| {
@@ -144,6 +145,7 @@ impl<const TILE_SIZE: usize, V: GridValue> Grid for TiledBuffer<TILE_SIZE, V> {
                 let t_s = TILE_SIZE as i64;
                 let top_left = Coord::from((t_x * t_s, t_y * t_s));
                 let bottom_right = Coord::from(((t_x + 1) * t_s - 1, (t_y + 1) * t_s - 1));
+                // These extents are always returned
                 let mut extents = vec![
                     // 0
                     Extent {
@@ -151,6 +153,11 @@ impl<const TILE_SIZE: usize, V: GridValue> Grid for TiledBuffer<TILE_SIZE, V> {
                         bottom_right,
                     },
                     // 1
+                    Extent {
+                        top_left: Coord::from((top_left.x, bottom_right.y)),
+                        bottom_right: Coord::from((bottom_right.x, bottom_right.y + 1))
+                    },
+                    // a
                     Extent {
                         top_left: Coord::from((top_left.x - 1, bottom_right.y)),
                         bottom_right: Coord::from((top_left.x, bottom_right.y + 1)),
@@ -160,43 +167,38 @@ impl<const TILE_SIZE: usize, V: GridValue> Grid for TiledBuffer<TILE_SIZE, V> {
                         top_left: Coord::from((top_left.x - 1, top_left.y)),
                         bottom_right: Coord::from((top_left.x, bottom_right.y)),
                     },
-                    // 3
-                    Extent {
+                ];
+                if !self.has_tile(t_x, t_y - 1) {
+                    // b
+                    extents.push(Extent {
                         top_left: Coord::from((top_left.x - 1, top_left.y - 1)),
                         bottom_right: top_left,
-                    },
-                    // 4
-                    Extent {
+                    });
+                    // 3
+                    extents.push(Extent {
                         top_left: Coord::from((top_left.x, top_left.y - 1)),
                         bottom_right: Coord::from((bottom_right.x, top_left.y)),
-                    },
-                ];
-                // 5
-                if self.has_tile(t_x + 1, t_y - 1) {
+                    });
+                }
+                if !self.has_tile(t_x + 1, t_y) && !self.has_tile(t_x + 1, t_y - 1) {
+                    // c
                     extents.push(Extent {
                         top_left: Coord::from((bottom_right.x, top_left.y - 1)),
                         bottom_right: Coord::from((bottom_right.x + 1, top_left.y)),
                     });
                 }
-                // 6
-                if self.has_tile(t_x + 1, t_y) {
+                if !self.has_tile(t_x + 1, t_y) {
+                    // 4
                     extents.push(Extent {
                         top_left: Coord::from((bottom_right.x, top_left.y)),
                         bottom_right: Coord::from((bottom_right.x + 1, bottom_right.y)),
                     });
                 }
-                // 7
-                if self.has_tile(t_x + 1, t_y + 1) {
+                if !self.has_tile(t_x + 1, t_y) && !self.has_tile(t_x + 1, t_y + 1) && !self.has_tile(t_x, t_y + 1) {
+                    // d
                     extents.push(Extent {
                         top_left: bottom_right,
                         bottom_right: Coord::from((bottom_right.x + 1, bottom_right.y + 1)),
-                    });
-                }
-                // 8
-                if self.has_tile(t_x, t_y + 1) {
-                    extents.push(Extent {
-                        top_left: Coord::from((top_left.x, bottom_right.y)),
-                        bottom_right: Coord::from((bottom_right.x, bottom_right.y + 1)),
                     })
                 }
                 extents
